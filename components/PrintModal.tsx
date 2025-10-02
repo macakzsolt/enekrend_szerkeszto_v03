@@ -12,7 +12,7 @@ const PrintModal: React.FC<PrintModalProps> = ({ isOpen, onClose, order }) => {
   const [options, setOptions] = useState<PrintOptions>({
     headerTitle: 'Szentmise énekrend',
     headerDate: new Date().toLocaleDateString('hu-HU'),
-    layout: 'one-column',
+    layout: 'two-column',
     fontSize: 'base',
     showChords: true,
     showPageNumbers: true,
@@ -117,53 +117,85 @@ const PrintModal: React.FC<PrintModalProps> = ({ isOpen, onClose, order }) => {
       <html lang="hu">
       <head>
         <title>Nyomtatás - ${escapeHtml(options.headerTitle)}</title>
+        <link rel="preconnect" href="https://rsms.me/">
+        <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
         <style>
           @media print {
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .no-print { display: none; }
-            @page { size: A4; margin: 1.5cm; }
+            body { 
+              -webkit-print-color-adjust: exact; 
+              print-color-adjust: exact; 
+            }
+            .page-counter::after {
+              counter-increment: page;
+              content: counter(page);
+            }
+          }
+          @page { 
+            size: A4; 
+            margin: 1.5cm; 
           }
           body {
             font-family: Georgia, 'Times New Roman', Times, serif;
-            font-size: ${options.fontSize === 'sm' ? '10pt' : options.fontSize === 'lg' ? '14pt' : '12pt'};
+            font-size: ${options.fontSize === 'sm' ? '10pt' : options.fontSize === 'lg' ? '13pt' : '11pt'};
             line-height: 1.5;
+            counter-reset: page;
           }
-          header { text-align: center; margin-bottom: 2rem; }
-          h1 { font-size: 1.8em; font-weight: bold; font-family: sans-serif; }
-          h2 { font-size: 1.4em; font-family: sans-serif;}
+          header { 
+            text-align: center; 
+            margin-bottom: 2rem; 
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 1rem;
+          }
+          h1 { 
+            font-size: 1.8em; 
+            font-weight: 600; 
+            font-family: 'Inter', sans-serif; 
+            margin: 0;
+          }
+          .header-date { 
+            font-size: 1.2em; 
+            font-family: 'Inter', sans-serif;
+            font-weight: 400;
+            color: #666;
+            margin: 0;
+            margin-top: 0.25rem;
+          }
           main {
              column-count: ${isTwoCol ? 2 : 1};
              column-gap: 2rem;
+             ${isTwoCol ? 'column-rule: 1px solid #eee;' : ''}
              widows: 3;
              orphans: 3;
           }
           .song, .theme-title { 
             break-inside: avoid;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.8rem;
             padding-top: 0.5rem;
           }
           .theme-title {
-            margin-top: 1rem;
-            border-top: 1px solid #999;
-            font-family: sans-serif;
-            font-weight: bold;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 2px solid #333;
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
             font-size: 1.3em;
+            color: #333;
           }
           .song-title {
-            font-family: sans-serif;
-            font-weight: bold;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
             font-size: 1.2em;
             margin-bottom: 0.1em;
           }
           .song-author {
-            font-family: sans-serif;
+            font-family: 'Inter', sans-serif;
             font-style: italic;
             font-size: 0.9em;
-            margin-bottom: 0.5em;
+            margin-bottom: 0.8em;
             color: #555;
           }
           .verse {
-            margin-bottom: 0.75rem;
+            margin-bottom: 1rem;
             break-inside: avoid;
           }
           .line-pair {
@@ -174,32 +206,51 @@ const PrintModal: React.FC<PrintModalProps> = ({ isOpen, onClose, order }) => {
             margin: 0;
             padding: 0;
             font-size: 1em;
-            line-height: 1.3;
-            white-space: pre-wrap; /* Allow wrapping for very long lines */
-            word-break: break-all;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: normal;
           }
           pre.verse-marker {
             font-style: italic;
             font-weight: bold;
-            margin-bottom: 0.25rem;
-            font-family: sans-serif;
+            margin-bottom: 0.4rem;
+            font-family: 'Inter', sans-serif;
+            color: #666;
+            font-size: 0.95em;
           }
           pre.chords {
             font-weight: bold;
-            color: black;
+            color: #1d4ed8; /* blue-700 */
           }
-          .page-footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 0.8em; font-family: sans-serif; }
+          pre.lyrics {
+            color: #1c1917; /* stone-900 */
+          }
+          .page-footer { 
+            display: none; 
+          }
+          @media print {
+            .page-footer {
+              display: block;
+              position: fixed; 
+              bottom: 0.5cm; 
+              right: 1.5cm; 
+              text-align: right; 
+              font-size: 9pt; 
+              font-family: 'Inter', sans-serif;
+              color: #888;
+            }
+          }
         </style> 
       </head>
       <body>
         <header>
           <h1>${escapeHtml(options.headerTitle)}</h1>
-          <h2>${escapeHtml(options.headerDate)}</h2>
+          <h2 class="header-date">${escapeHtml(options.headerDate)}</h2>
         </header>
         <main>
           ${songsHtml}
         </main>
-        ${options.showPageNumbers ? `<footer class="page-footer no-print">Oldal</footer>` : ''}
+        ${options.showPageNumbers ? `<footer class="page-footer"><span class="page-counter"></span></footer>` : ''}
       </body>
       </html>
     `;
