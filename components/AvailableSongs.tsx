@@ -23,6 +23,11 @@ const AvailableSongs: React.FC<AvailableSongsProps> = ({ songs, onAddSong, onSho
     );
   };
 
+  const handleDragStart = (e: React.DragEvent<HTMLLIElement>, song: Song) => {
+    e.dataTransfer.setData('application/song+json', JSON.stringify(song));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
   const filteredSongs = songs.filter(song => {
     const term = searchTerm.toLowerCase();
     const searchTermMatch =
@@ -98,8 +103,10 @@ const AvailableSongs: React.FC<AvailableSongsProps> = ({ songs, onAddSong, onSho
         {sortedSongs.map(song => (
           <li
             key={song.id}
+            draggable
+            onDragStart={(e) => handleDragStart(e, song)}
             onDoubleClick={() => onAddSong(song)}
-            className="flex justify-between items-center p-2 rounded-md hover:bg-sky-100 cursor-pointer group"
+            className="flex justify-between items-center p-2 rounded-md hover:bg-sky-100 cursor-grab group"
           >
             <Tooltip content={song.content}>
                <div className="flex-grow truncate mr-2">

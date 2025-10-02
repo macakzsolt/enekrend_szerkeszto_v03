@@ -1,16 +1,17 @@
-
 import React, { useState } from 'react';
-import { SongOrderItem } from '../types';
+import { Song, SongOrderItem } from '../types';
 import Tooltip from './Tooltip';
 
 interface SongOrderProps {
   order: SongOrderItem[];
   setOrder: React.Dispatch<React.SetStateAction<SongOrderItem[]>>;
   onRemoveItem: (instanceId: string) => void;
+  onAddSong: (song: Song) => void;
 }
 
-const SongOrder: React.FC<SongOrderProps> = ({ order, setOrder, onRemoveItem }) => {
+const SongOrder: React.FC<SongOrderProps> = ({ order, setOrder, onRemoveItem, onAddSong }) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [isDropTarget, setIsDropTarget] = useState(false);
 
   const handleDragStart = (e: React.DragEvent<HTMLLIElement>, index: number) => {
     setDraggedIndex(index);
@@ -33,10 +34,50 @@ const SongOrder: React.FC<SongOrderProps> = ({ order, setOrder, onRemoveItem }) 
     setDraggedIndex(null);
   };
 
+  const handleListDragOver = (e: React.DragEvent<HTMLUListElement>) => {
+    e.preventDefault();
+    if (e.dataTransfer.types.includes('application/song+json')) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  };
+
+  const handleListDragEnter = (e: React.DragEvent<HTMLUListElement>) => {
+    if (e.dataTransfer.types.includes('application/song+json')) {
+      setIsDropTarget(true);
+    }
+  };
+  
+  const handleListDragLeave = () => {
+    setIsDropTarget(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLUListElement>) => {
+    e.preventDefault();
+    setIsDropTarget(false);
+    
+    const songData = e.dataTransfer.getData('application/song+json');
+    if (songData) {
+      try {
+        const song = JSON.parse(songData) as Song;
+        onAddSong(song);
+      } catch (error) {
+        console.error("Failed to parse dropped song data", error);
+      }
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-white rounded-lg shadow-md p-4">
       <h2 className="text-xl font-bold mb-4 text-slate-700">Ének sorrend</h2>
-      <ul className="overflow-y-auto flex-grow border-2 border-dashed border-slate-300 rounded-md p-2 bg-slate-50 min-h-[200px]">
+      <ul 
+        onDragOver={handleListDragOver}
+        onDrop={handleDrop}
+        onDragEnter={handleListDragEnter}
+        onDragLeave={handleListDragLeave}
+        className={`overflow-y-auto flex-grow border-2 border-dashed rounded-md p-2 min-h-[200px] transition-colors ${
+          isDropTarget ? 'border-sky-500 bg-sky-100' : 'border-slate-300 bg-slate-50'
+        }`}
+      >
         {order.length === 0 ? (
           <li className="text-center text-slate-500 italic p-4">Húzz ide énekeket vagy témákat a kezdéshez.</li>
         ) : (

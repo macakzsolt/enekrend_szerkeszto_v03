@@ -124,8 +124,15 @@ const App: React.FC = () => {
   };
 
   const handleExportTxt = () => {
-    const content = order.map((item, index) => `${index + 1}. ${item.title}`).join('\\n');
-    downloadFile(content, 'enekrend.txt', 'text/plain');
+    const content = order.map((item, index) => {
+      let line = `${index + 1}. ${item.title}`;
+      if ('content' in item && item.references && item.references.length > 0) {
+        line += ` (${item.references.join(', ')})`;
+      }
+      return line;
+    }).join('\n');
+    
+    downloadFile(content, 'enekrend.txt', 'text/plain;charset=utf-8');
   };
 
   const handleExportJson = () => {
@@ -305,7 +312,12 @@ const App: React.FC = () => {
           onShowEditSongModal={handleShowEditSongModal}
           onDeleteSong={handleDeleteSongRequest}
         />
-        <SongOrder order={order} setOrder={setOrder} onRemoveItem={handleRemoveItemFromOrder} />
+        <SongOrder 
+          order={order} 
+          setOrder={setOrder} 
+          onRemoveItem={handleRemoveItemFromOrder} 
+          onAddSong={handleAddSongToOrder}
+        />
         <Themes themes={THEMES} onAddTheme={handleAddThemeToOrder} />
       </main>
       
