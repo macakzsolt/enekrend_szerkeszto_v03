@@ -6,7 +6,7 @@ import SongEditorModal from './components/SongEditorModal';
 import PrintModal from './components/PrintModal';
 import ConfirmationModal from './components/ConfirmationModal';
 import { Song, Theme, SongOrderItem } from './types';
-import { THEMES, DEFAULT_SONGS } from './constants';
+import { THEMES, DEFAULT_SONGS, BOOKS } from './constants';
 import { storageService } from './services/storageService';
 
 const App: React.FC = () => {
@@ -196,6 +196,14 @@ const App: React.FC = () => {
         let skippedCount = 0;
         let failedCount = 0;
 
+        const bookNameToPrefix: { [key: string]: string } = {};
+        Object.entries(BOOKS).forEach(([prefix, name]) => {
+          bookNameToPrefix[name] = prefix;
+        });
+        
+        const bookPrefixes = Object.keys(BOOKS).join('|');
+        const referenceRegex = new RegExp(`(${bookPrefixes})\\d+`, 'gi');
+
         fileContents.forEach(({ file, content }) => {
             if (existingIds.has(file.name)) {
                 skippedCount++;
@@ -212,26 +220,49 @@ const App: React.FC = () => {
                     failedCount++;
                     return;
                 }
+                
+                const querySelectorText = (selectors: string[]): string | null => {
+                    for (const selector of selectors) {
+                        const node = xmlDoc.querySelector(selector);
+                        if (node && node.textContent) return node.textContent.trim();
+                    }
+                    return null;
+                };
 
-                const titleNode = xmlDoc.querySelector("title");
-                const authorNode = xmlDoc.querySelector("author");
-                const lyricsNode = xmlDoc.querySelector("lyrics");
-
-                const title = titleNode?.textContent?.trim() || file.name.replace(/\.xml$/i, '').replace(/_/g, ' ');
-                const author = authorNode?.textContent?.trim() || '';
-                const lyrics = lyricsNode?.textContent?.trim();
+                const title = querySelectorText(["properties > titles > title", "title"]) || file.name.replace(/\.xml$/i, '').replace(/_/g, ' ');
+                const author = querySelectorText(["properties > authors > author", "author"]) || '';
+                const lyrics = querySelectorText(["lyrics"]);
 
                 if (!lyrics) {
                     console.warn(`Could not extract <lyrics> from ${file.name}`);
                     failedCount++;
                     return;
                 }
+                
+                const referencesFromXml: string[] = [];
+                const songbookNodes = xmlDoc.querySelectorAll("properties > songbooks > songbook");
+                songbookNodes.forEach(node => {
+                    const name = node.getAttribute('name');
+                    const entry = node.getAttribute('entry');
+                    if (name && entry) {
+                        const prefix = bookNameToPrefix[name];
+                        if (prefix) {
+                            referencesFromXml.push(`${prefix}${entry}`);
+                        }
+                    }
+                });
+
+                const referencesFromFile = file.name.match(referenceRegex) || [];
+                
+                const allReferences = Array.from(new Set([...referencesFromXml, ...referencesFromFile.map(ref => ref.toUpperCase())]));
+
 
                 newSongs.push({
                     id: file.name,
-                    title: title,
-                    author: author,
+                    title,
+                    author,
                     content: lyrics,
+                    references: allReferences,
                 });
             } catch (e) {
                 console.error(`Failed to process XML file ${file.name}`, e);
@@ -243,12 +274,12 @@ const App: React.FC = () => {
             setSongs(prev => [...prev, ...newSongs]);
         }
         
-        let alertMessage = `${newSongs.length} ének importálva.`;
+        let alertMessage = `${newSongs.length} ének sikeresen importálva.`;
         if (skippedCount > 0) {
-            alertMessage += ` ${skippedCount} kihagyva (már létezett).`;
+            alertMessage += `\n${skippedCount} ének kihagyva (már létezett).`;
         }
         if (failedCount > 0) {
-            alertMessage += ` ${failedCount} importálása sikertelen (hibás formátum).`;
+            alertMessage += `\n${failedCount} ének importálása sikertelen (hibás formátum vagy hiányzó tartalom).`;
         }
         alert(alertMessage);
 

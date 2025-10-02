@@ -1,6 +1,15 @@
 
 import { Song, Theme } from './types';
 
+export const BOOKS: { [key: string]: string } = {
+  'K': 'Kékkönyv',
+  'D': 'Dúrkönyv',
+  'SK': 'Sárgakönyv',
+  'Z': 'Zöld könyv',
+  'E': 'Emmanuel',
+  'SZ': 'Szent vagy Uram',
+};
+
 export const THEMES: Theme[] = [
   { id: 'theme_bevonulas', title: 'Bevonulási ének' },
   { id: 'theme_kyrie', title: 'Kyrie' },
@@ -27,7 +36,8 @@ Amint vagyok, csak úgy, mint egy semmire méltó,
 De mert szavadra hittel jövök hozzád, bűnös lelkemet
 .C              G              C               F
 Te, Isten Báránya, fogadj el!
-.   C      G        C`
+.   C      G        C`,
+    references: ['K123']
   },
   {
     id: 'jezus_eletem.xml',
@@ -49,7 +59,8 @@ Nincs más rajtad kívül,
 Kitől annyi jót kapnék.
 .G        D        Em  C
 Te vagy a legdrágább barát!
-.G            D       G`
+.G            D       G`,
+    references: ['D17', 'SK28']
   },
   {
     id: 'szent_vagy_mindorokke.xml',
@@ -66,7 +77,8 @@ Hozsanna a magasságban!
 Áldott, aki jön az Úr nevében.
 .F     C     Dm   G      C
 Hozsanna a magasságban!
-.F        G          C`
+.F        G          C`,
+    references: ['Z244', 'K31']
   }
 ];
 

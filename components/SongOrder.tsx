@@ -58,7 +58,9 @@ const SongOrder: React.FC<SongOrderProps> = ({ order, setOrder, onRemoveItem }) 
                       {index + 1}. {item.title}
                     </p>
                     {'content' in item && (
-                      <p className="truncate text-xs text-slate-500 pl-4">{item.id}</p>
+                      <p className="truncate text-xs text-slate-500 pl-4">
+                        {item.references && item.references.length > 0 ? item.references.join(', ') : item.id}
+                      </p>
                     )}
                   </div>
               </Tooltip>

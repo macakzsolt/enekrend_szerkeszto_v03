@@ -49,6 +49,7 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [filename, setFilename] = useState('');
+  const [references, setReferences] = useState('');
   const [content, setContent] = useState('');
   const [filenameError, setFilenameError] = useState<string | null>(null);
   
@@ -64,6 +65,7 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
       setTitle(song?.title || '');
       setAuthor(song?.author || '');
       setFilename(song?.id || '');
+      setReferences(song?.references?.join(', ') || '');
       setContent(song?.content || '');
       setHistory([{ content: song?.content || '', cursorPosition: 0 }]);
       setHistoryIndex(0);
@@ -134,7 +136,8 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
         id: filename,
         title,
         author,
-        content
+        content,
+        references: references.split(',').map(r => r.trim()).filter(Boolean),
       });
       onClose();
     }
@@ -173,7 +176,7 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
         <div className="bg-slate-50 rounded-lg shadow-2xl p-6 w-full max-w-4xl h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
           <h3 className="text-2xl font-bold mb-4">{song ? 'Ének szerkesztése' : 'Új ének hozzáadása'}</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label htmlFor="title" className="block text-sm font-medium text-gray-700">Ének címe</label>
               <input type="text" id="title" value={title} onChange={e => setTitle(e.target.value)} required className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500"/>
@@ -186,6 +189,10 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
               <label htmlFor="filename" className="block text-sm font-medium text-gray-700">Fájlnév</label>
               <input type="text" id="filename" value={filename} onChange={e => setFilename(e.target.value)} required className={`mt-1 block w-full px-3 py-2 border ${filenameError ? 'border-red-500' : 'border-gray-300'} rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500`}/>
               {filenameError && <p className="text-red-500 text-xs mt-1">{filenameError}</p>}
+            </div>
+            <div>
+              <label htmlFor="references" className="block text-sm font-medium text-gray-700">Könyv jelzetek (pl. K33, D17)</label>
+              <input type="text" id="references" value={references} onChange={e => setReferences(e.target.value)} placeholder="K33, D17, SK12..." className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500"/>
             </div>
           </div>
           

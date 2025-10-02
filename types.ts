@@ -3,6 +3,7 @@ export interface Song {
   title: string;
   author?: string;
   content: string; // The raw text with chords and verse markers
+  references?: string[]; // e.g., ['K33', 'D17']
 }
 
 export interface Theme {

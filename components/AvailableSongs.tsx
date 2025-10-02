@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Song } from '../types';
 import Tooltip from './Tooltip';
+import { BOOKS } from '../constants';
 
 interface AvailableSongsProps {
   songs: Song[];
@@ -12,12 +13,33 @@ interface AvailableSongsProps {
 
 const AvailableSongs: React.FC<AvailableSongsProps> = ({ songs, onAddSong, onShowNewSongModal, onShowEditSongModal, onDeleteSong }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeBookFilters, setActiveBookFilters] = useState<string[]>([]);
 
-  const filteredSongs = songs.filter(song =>
-    song.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (song.author && song.author.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    song.content.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const toggleBookFilter = (bookPrefix: string) => {
+    setActiveBookFilters(prev =>
+      prev.includes(bookPrefix)
+        ? prev.filter(b => b !== bookPrefix)
+        : [...prev, bookPrefix]
+    );
+  };
+
+  const filteredSongs = songs.filter(song => {
+    const term = searchTerm.toLowerCase();
+    const searchTermMatch =
+      !term ||
+      song.title.toLowerCase().includes(term) ||
+      (song.author && song.author.toLowerCase().includes(term)) ||
+      song.content.toLowerCase().includes(term) ||
+      (song.references && song.references.some(r => r.toLowerCase().includes(term)));
+
+    const bookFilterMatch =
+      activeBookFilters.length === 0 ||
+      (song.references && song.references.some(ref =>
+        activeBookFilters.some(prefix => ref.toUpperCase().startsWith(prefix))
+      ));
+    
+    return searchTermMatch && bookFilterMatch;
+  });
 
   const sortedSongs = [...filteredSongs].sort((a, b) => a.title.localeCompare(b.title));
 
@@ -46,6 +68,32 @@ const AvailableSongs: React.FC<AvailableSongsProps> = ({ songs, onAddSong, onSho
                 onChange={(e) => setSearchTerm(e.target.value)}
             />
         </div>
+      <div className="mb-4">
+          <div className="flex flex-wrap items-center gap-2">
+              {Object.entries(BOOKS).map(([prefix, name]) => (
+                  <button
+                      key={prefix}
+                      onClick={() => toggleBookFilter(prefix)}
+                      className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                          activeBookFilters.includes(prefix)
+                          ? 'bg-sky-600 text-white shadow'
+                          : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                      }`}
+                  >
+                      {name}
+                  </button>
+              ))}
+               {activeBookFilters.length > 0 && (
+                  <button
+                      onClick={() => setActiveBookFilters([])}
+                      className="ml-2 text-xs text-slate-500 hover:text-sky-600"
+                      aria-label="Szűrők törlése"
+                  >
+                      × Törlés
+                  </button>
+                )}
+          </div>
+      </div>
       <ul className="overflow-y-auto flex-grow pr-2">
         {sortedSongs.map(song => (
           <li
@@ -56,7 +104,9 @@ const AvailableSongs: React.FC<AvailableSongsProps> = ({ songs, onAddSong, onSho
             <Tooltip content={song.content}>
                <div className="flex-grow truncate mr-2">
                   <p className="truncate group-hover:text-sky-800 font-medium text-sm">{song.title}</p>
-                  <p className="truncate text-xs text-slate-500">{song.id}</p>
+                  <p className="truncate text-xs text-slate-500">
+                    {song.references && song.references.length > 0 ? song.references.join(', ') : song.id}
+                  </p>
                 </div>
             </Tooltip>
             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">

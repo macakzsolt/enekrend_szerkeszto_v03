@@ -47,18 +47,17 @@ export const songService = {
   transpose(content: string, amount: number): string {
     return content.split('\n').map(line => {
       if (line.trim().startsWith('.')) {
-        // We need to handle the dot prefix carefully during transposition
         const dotIndex = line.indexOf('.');
         const prefix = line.substring(0, dotIndex + 1);
         const chordsPart = line.substring(dotIndex + 1);
 
-        const chords = chordsPart.split(/\s+/).filter(Boolean);
-        const transposedChords = chords.map(chord => transposeChord(chord, amount));
+        // Replace each non-whitespace sequence (a chord) with its transposed version.
+        // This preserves all original spacing.
+        const transposedChordsPart = chordsPart.replace(/\S+/g, (chord) => {
+            return transposeChord(chord, amount);
+        });
         
-        // This is a simplified reconstruction and might lose complex spacing.
-        // A more robust solution would involve parsing and rebuilding the string with spacing.
-        // For now, join with single spaces.
-        return `${prefix}${transposedChords.join(' ')}`;
+        return `${prefix}${transposedChordsPart}`;
       }
       return line;
     }).join('\n');
