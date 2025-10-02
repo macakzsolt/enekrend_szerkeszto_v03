@@ -1,0 +1,5 @@
+{
+  "name": "Énekrend Szerkesztő",
+  "description": "A web application for creating and managing song orders for liturgical services, with features for song editing, chord transposition, and print export.",
+  "requestFramePermissions": []
+}

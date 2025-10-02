@@ -1,0 +1,30 @@
+export interface Song {
+  id: string; // filename, e.g., 'dal_01.xml'
+  title: string;
+  author?: string;
+  content: string; // The raw text with chords and verse markers
+}
+
+export interface Theme {
+  id: string;
+  title: string;
+}
+
+export type SongOrderItem = (Song | Theme) & { instanceId: string };
+
+export interface PrintOptions {
+  headerTitle: string;
+  headerDate: string;
+  layout: 'one-column' | 'two-column';
+  fontSize: 'sm' | 'base' | 'lg';
+  showChords: boolean;
+  showPageNumbers: boolean;
+}
+
+export interface Verse {
+  marker: string;
+  lines: {
+    type: 'lyric' | 'chord';
+    text: string;
+  }[];
+}

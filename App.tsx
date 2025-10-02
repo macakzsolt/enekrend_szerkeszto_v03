@@ -1,0 +1,291 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import AvailableSongs from './components/AvailableSongs';
+import SongOrder from './components/SongOrder';
+import Themes from './components/Themes';
+import SongEditorModal from './components/SongEditorModal';
+import PrintModal from './components/PrintModal';
+import ConfirmationModal from './components/ConfirmationModal';
+import { Song, Theme, SongOrderItem } from './types';
+import { THEMES, DEFAULT_SONGS } from './constants';
+import { storageService } from './services/storageService';
+
+const App: React.FC = () => {
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [order, setOrder] = useState<SongOrderItem[]>([]);
+  const [isSongEditorOpen, setSongEditorOpen] = useState(false);
+  const [editingSong, setEditingSong] = useState<Song | null>(null);
+  const [isPrintModalOpen, setPrintModalOpen] = useState(false);
+  const [isClearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [songToDelete, setSongToDelete] = useState<Song | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const loadedSongs = storageService.loadSongs();
+    if (loadedSongs) {
+      setSongs(loadedSongs);
+    } else {
+      setSongs(DEFAULT_SONGS);
+    }
+
+    const loadedOrder = storageService.loadOrder();
+    if (loadedOrder) {
+      setOrder(loadedOrder);
+    }
+  }, []);
+
+  useEffect(() => {
+    storageService.saveSongs(songs);
+  }, [songs]);
+
+  useEffect(() => {
+    storageService.saveOrder(order);
+  }, [order]);
+
+  const handleAddSongToOrder = useCallback((song: Song) => {
+    const newOrderItem: SongOrderItem = { ...song, instanceId: `song_${song.id}_${Date.now()}` };
+    setOrder(prev => [...prev, newOrderItem]);
+  }, []);
+
+  const handleAddThemeToOrder = useCallback((theme: Theme) => {
+    const newOrderItem: SongOrderItem = { ...theme, instanceId: `theme_${theme.id}_${Date.now()}` };
+    setOrder(prev => [...prev, newOrderItem]);
+  }, []);
+
+  const handleRemoveItemFromOrder = useCallback((instanceId: string) => {
+    setOrder(prev => prev.filter(item => item.instanceId !== instanceId));
+  }, []);
+  
+  const handleShowNewSongModal = () => {
+    setEditingSong(null);
+    setSongEditorOpen(true);
+  };
+  
+  const handleShowEditSongModal = (song: Song) => {
+    setEditingSong(song);
+    setSongEditorOpen(true);
+  };
+
+  const handleSaveSong = (songToSave: Song) => {
+    setSongs(prevSongs => {
+      const existingIndex = prevSongs.findIndex(s => s.id === songToSave.id);
+      if (existingIndex > -1) {
+        const newSongs = [...prevSongs];
+        newSongs[existingIndex] = songToSave;
+        return newSongs;
+      } else {
+        return [...prevSongs, songToSave];
+      }
+    });
+    // also update in order if it exists
+    setOrder(prevOrder => prevOrder.map(item => {
+      if ('content' in item && item.id === songToSave.id) {
+        return { ...item, ...songToSave };
+      }
+      return item;
+    }));
+  };
+
+  const handleDeleteSongRequest = (song: Song) => {
+    setSongToDelete(song);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!songToDelete) return;
+    
+    // Remove from songs list
+    setSongs(prevSongs => prevSongs.filter(s => s.id !== songToDelete.id));
+    
+    // Remove from order list
+    setOrder(prevOrder => prevOrder.filter(item => item.id !== songToDelete.id));
+
+    setSongToDelete(null); // Close modal
+  };
+
+  const handleCancelDelete = () => {
+    setSongToDelete(null);
+  };
+  
+  const handleClearOrder = () => {
+    setOrder([]);
+    setClearConfirmOpen(false);
+  };
+
+  const downloadFile = (content: string, filename: string, contentType: string) => {
+    const blob = new Blob([content], { type: contentType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportTxt = () => {
+    const content = order.map((item, index) => `${index + 1}. ${item.title}`).join('\\n');
+    downloadFile(content, 'enekrend.txt', 'text/plain');
+  };
+
+  const handleExportJson = () => {
+    const content = JSON.stringify({ order, songs: songs.filter(s => order.some(o => o.id === s.id)) }, null, 2);
+    downloadFile(content, 'enekrend.json', 'application/json');
+  };
+  
+  const handleImportJson = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    const target = event.target;
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const result = e.target?.result as string;
+            if (!result) throw new Error("File could not be read.");
+            
+            const data = JSON.parse(result);
+            if (data.order && Array.isArray(data.order)) {
+                setOrder(data.order);
+            }
+            if (data.songs && Array.isArray(data.songs)) {
+                setSongs(prevSongs => {
+                    const songMap = new Map(prevSongs.map(s => [s.id, s]));
+                    data.songs.forEach((newSong: Song) => {
+                        // Basic validation
+                        if (newSong.id && typeof newSong.title === 'string' && typeof newSong.content === 'string') {
+                            songMap.set(newSong.id, newSong);
+                        }
+                    });
+                    return Array.from(songMap.values());
+                });
+            }
+        } catch (error) {
+            console.error("Failed to parse JSON:", error);
+            alert('Hiba a JSON fájl beolvasása közben. Ellenőrizd a fájl formátumát.');
+        } finally {
+            if (target) target.value = '';
+        }
+    };
+    reader.onerror = () => {
+        alert('Hiba a fájl olvasása közben.');
+        if (target) target.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportXml = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    const target = event.target;
+    if (!files || files.length === 0) return;
+
+    const readFileAsText = (file: File): Promise<{ file: File; content: string }> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({ file, content: reader.result as string });
+            reader.onerror = reject;
+            reader.readAsText(file);
+        });
+    };
+
+    try {
+        const fileContents = await Promise.all(Array.from(files).map(readFileAsText));
+        
+        const existingIds = new Set(songs.map(s => s.id));
+        const newSongs: Song[] = [];
+        let skippedCount = 0;
+
+        fileContents.forEach(({ file, content }) => {
+            if (existingIds.has(file.name)) {
+                skippedCount++;
+            } else {
+                newSongs.push({
+                    id: file.name,
+                    title: file.name.replace(/\.xml$/i, '').replace(/_/g, ' '),
+                    content: content,
+                });
+            }
+        });
+
+        if (newSongs.length > 0) {
+            setSongs(prev => [...prev, ...newSongs]);
+        }
+
+        alert(`${newSongs.length} ének importálva, ${skippedCount} kihagyva (már létezett).`);
+    } catch (error) {
+        console.error("Error reading XML files:", error);
+        alert("Hiba történt egy vagy több fájl beolvasása közben.");
+    } finally {
+        if (target) target.value = '';
+    }
+  };
+
+  return (
+    <div className="h-full w-full p-4 flex flex-col font-sans">
+      <header className="mb-4 flex justify-between items-center flex-shrink-0">
+        <h1 className="text-3xl font-bold text-slate-800">Énekrend Szerkesztő</h1>
+      </header>
+      
+      <main className="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
+        <AvailableSongs 
+          songs={songs} 
+          onAddSong={handleAddSongToOrder} 
+          onShowNewSongModal={handleShowNewSongModal}
+          onShowEditSongModal={handleShowEditSongModal}
+          onDeleteSong={handleDeleteSongRequest}
+        />
+        <SongOrder order={order} setOrder={setOrder} onRemoveItem={handleRemoveItemFromOrder} />
+        <Themes themes={THEMES} onAddTheme={handleAddThemeToOrder} />
+      </main>
+      
+      <footer className="mt-4 p-4 bg-white rounded-lg shadow-md flex flex-wrap items-center justify-center gap-4 flex-shrink-0">
+        <button onClick={() => setClearConfirmOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Összes Törlése</button>
+        <div className="h-6 w-px bg-slate-300"></div>
+        <button onClick={handleExportTxt} className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200">Sorrend megosztáshoz (txt)</button>
+        <button onClick={handleExportJson} className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200">Exportálás (JSON)</button>
+        <label className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200 cursor-pointer">
+          Importálás (JSON)
+          <input type="file" accept=".json" onChange={handleImportJson} className="hidden"/>
+        </label>
+         <label className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200 cursor-pointer">
+          XML Fájlok Importálása
+          <input type="file" accept=".xml" onChange={handleImportXml} multiple className="hidden"/>
+        </label>
+        <div className="h-6 w-px bg-slate-300"></div>
+        <button onClick={() => setPrintModalOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700">Miserend Nyomtatáshoz</button>
+      </footer>
+
+      <SongEditorModal 
+        isOpen={isSongEditorOpen} 
+        song={editingSong}
+        onClose={() => setSongEditorOpen(false)} 
+        onSave={handleSaveSong}
+        existingFilenames={songs.map(s => s.id)}
+      />
+      
+      <PrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setPrintModalOpen(false)}
+        order={order}
+      />
+
+      <ConfirmationModal
+        isOpen={isClearConfirmOpen}
+        title="Sorrend törlése"
+        message="Biztosan törölni szeretnéd a teljes ének sorrendet? Ez a művelet nem vonható vissza."
+        onConfirm={handleClearOrder}
+        onCancel={() => setClearConfirmOpen(false)}
+      />
+
+      <ConfirmationModal
+        isOpen={!!songToDelete}
+        title="Ének törlése"
+        message={`Biztosan törölni szeretnéd a(z) "${songToDelete?.title}" című éneket? Ez a művelet eltávolítja az éneket a sorrendből is.`}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
+    </div>
+  );
+};
+
+export default App;
