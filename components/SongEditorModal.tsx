@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Song, Verse } from '../types';
 import { songService } from '../services/songService';
@@ -17,6 +16,35 @@ interface HistoryEntry {
   cursorPosition: number;
 }
 
+const PLACEHOLDER_TEXT = `Ének szövege...\nAkkord sorokat '.'-tal kezdj.\nVesszakokat '[V1]' jelölj.`;
+
+const escapeHtml = (unsafe: string) => unsafe
+     .replace(/&/g, "&amp;")
+     .replace(/</g, "&lt;")
+     .replace(/>/g, "&gt;")
+     .replace(/"/g, "&quot;")
+     .replace(/'/g, "&#039;");
+
+const generateHighlightedContent = (text: string) => {
+    if (!text) return `<span class="text-slate-400 whitespace-pre-wrap">${PLACEHOLDER_TEXT}</span>`;
+
+    return text
+        .split('\n')
+        .map(line => {
+            const escapedLine = escapeHtml(line);
+            
+            if (line.trim().startsWith('.')) {
+                return `<span class="text-sky-700 font-semibold">${escapedLine || '&nbsp;'}</span>`;
+            }
+            if (line.trim().startsWith('[') && line.trim().endsWith(']')) {
+                return `<span class="text-amber-700 font-semibold">${escapedLine || '&nbsp;'}</span>`;
+            }
+            return `<span>${escapedLine || '&nbsp;'}</span>`;
+        })
+        .join('\n');
+};
+
+
 const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose, onSave, existingFilenames }) => {
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
@@ -27,6 +55,7 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlighterRef = useRef<HTMLPreElement>(null);
 
   const [isCopyChordsModalOpen, setCopyChordsModalOpen] = useState(false);
 
@@ -42,6 +71,19 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
       setFilenameError(null);
     }
   }, [isOpen, song]);
+
+  const syncScroll = (element: HTMLTextAreaElement) => {
+    if (highlighterRef.current) {
+        highlighterRef.current.scrollTop = element.scrollTop;
+        highlighterRef.current.scrollLeft = element.scrollLeft;
+    }
+  };
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      syncScroll(textareaRef.current);
+    }
+  }, [content]);
 
   const updateContent = useCallback((newContent: string, newCursorPosition?: number) => {
     setContent(newContent);
@@ -123,6 +165,7 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
   if (!isOpen) return null;
 
   const verses = songService.parseToVerses(content);
+  const highlightedHtml = generateHighlightedContent(content);
 
   return (
     <>
@@ -163,16 +206,29 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
                 {COMMON_CHORDS.map(c => <button key={c} onClick={() => insertText(c + ' ')} className="font-mono text-xs px-2 py-0.5 bg-white rounded border border-slate-300">{c}</button>)}
             </div>
              <div className="flex flex-wrap gap-1 p-2 bg-slate-100 border-b border-slate-300">
-                {VERSE_MARKERS.map(v => <button key={v} onClick={() => insertText(`\\n${v}\\n`)} className="font-mono text-xs px-2 py-0.5 bg-white rounded border border-slate-300">{v}</button>)}
+                {VERSE_MARKERS.map(v => <button key={v} onClick={() => insertText(`\n${v}\n`)} className="font-mono text-xs px-2 py-0.5 bg-white rounded border border-slate-300">{v}</button>)}
             </div>
             
-            <textarea 
-              ref={textareaRef}
-              value={content} 
-              onChange={e => updateContent(e.target.value, e.target.selectionStart)}
-              placeholder="Ének szövege...&#10;Akkord sorokat '.'-tal kezdj.&#10;Vesszakokat '[V1]' jelölj."
-              className="w-full h-full p-2 border border-gray-300 rounded-b-md shadow-inner focus:outline-none focus:ring-sky-500 focus:border-sky-500 font-mono text-sm resize-none"
-            />
+            <div className="relative w-full h-full">
+              <pre
+                  ref={highlighterRef}
+                  aria-hidden="true"
+                  className="absolute top-0 left-0 w-full h-full p-2 border border-gray-300 rounded-b-md shadow-inner bg-white font-mono text-sm resize-none overflow-auto whitespace-pre-wrap word-break-normal"
+              >
+                  <code dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
+              </pre>
+              <textarea 
+                ref={textareaRef}
+                value={content} 
+                onChange={e => updateContent(e.target.value, e.target.selectionStart)}
+                onScroll={e => syncScroll(e.currentTarget)}
+                className="absolute top-0 left-0 w-full h-full p-2 border-transparent focus:border-transparent rounded-b-md font-mono text-sm resize-none bg-transparent text-transparent caret-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500"
+                spellCheck="false"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+              />
+            </div>
           </div>
 
           <div className="mt-6 flex justify-end space-x-3">

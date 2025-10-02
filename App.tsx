@@ -194,24 +194,64 @@ const App: React.FC = () => {
         const existingIds = new Set(songs.map(s => s.id));
         const newSongs: Song[] = [];
         let skippedCount = 0;
+        let failedCount = 0;
 
         fileContents.forEach(({ file, content }) => {
             if (existingIds.has(file.name)) {
                 skippedCount++;
-            } else {
+                return;
+            }
+
+            try {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(content, "application/xml");
+                
+                const parserError = xmlDoc.querySelector("parsererror");
+                if (parserError) {
+                    console.error(`Error parsing XML file ${file.name}:`, parserError.textContent);
+                    failedCount++;
+                    return;
+                }
+
+                const titleNode = xmlDoc.querySelector("title");
+                const authorNode = xmlDoc.querySelector("author");
+                const lyricsNode = xmlDoc.querySelector("lyrics");
+
+                const title = titleNode?.textContent?.trim() || file.name.replace(/\.xml$/i, '').replace(/_/g, ' ');
+                const author = authorNode?.textContent?.trim() || '';
+                const lyrics = lyricsNode?.textContent?.trim();
+
+                if (!lyrics) {
+                    console.warn(`Could not extract <lyrics> from ${file.name}`);
+                    failedCount++;
+                    return;
+                }
+
                 newSongs.push({
                     id: file.name,
-                    title: file.name.replace(/\.xml$/i, '').replace(/_/g, ' '),
-                    content: content,
+                    title: title,
+                    author: author,
+                    content: lyrics,
                 });
+            } catch (e) {
+                console.error(`Failed to process XML file ${file.name}`, e);
+                failedCount++;
             }
         });
 
         if (newSongs.length > 0) {
             setSongs(prev => [...prev, ...newSongs]);
         }
+        
+        let alertMessage = `${newSongs.length} ének importálva.`;
+        if (skippedCount > 0) {
+            alertMessage += ` ${skippedCount} kihagyva (már létezett).`;
+        }
+        if (failedCount > 0) {
+            alertMessage += ` ${failedCount} importálása sikertelen (hibás formátum).`;
+        }
+        alert(alertMessage);
 
-        alert(`${newSongs.length} ének importálva, ${skippedCount} kihagyva (már létezett).`);
     } catch (error) {
         console.error("Error reading XML files:", error);
         alert("Hiba történt egy vagy több fájl beolvasása közben.");

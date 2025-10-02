@@ -15,13 +15,14 @@ const AvailableSongs: React.FC<AvailableSongsProps> = ({ songs, onAddSong, onSho
 
   const filteredSongs = songs.filter(song =>
     song.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (song.author && song.author.toLowerCase().includes(searchTerm.toLowerCase())) ||
     song.content.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const sortedSongs = [...filteredSongs].sort((a, b) => a.title.localeCompare(b.title));
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow-md p-4">
+    <div className="flex flex-col h-full bg-white rounded-lg shadow-md p-4 min-h-0">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold text-slate-700">Elérhető énekek</h2>
         <button
