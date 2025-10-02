@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Song, SongOrderItem } from '../types';
+import { Song, Theme, SongOrderItem } from '../types';
 import Tooltip from './Tooltip';
 
 interface SongOrderProps {
@@ -7,9 +7,10 @@ interface SongOrderProps {
   setOrder: React.Dispatch<React.SetStateAction<SongOrderItem[]>>;
   onRemoveItem: (instanceId: string) => void;
   onAddSong: (song: Song) => void;
+  onAddTheme: (theme: Theme) => void;
 }
 
-const SongOrder: React.FC<SongOrderProps> = ({ order, setOrder, onRemoveItem, onAddSong }) => {
+const SongOrder: React.FC<SongOrderProps> = ({ order, setOrder, onRemoveItem, onAddSong, onAddTheme }) => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [isDropTarget, setIsDropTarget] = useState(false);
 
@@ -34,15 +35,20 @@ const SongOrder: React.FC<SongOrderProps> = ({ order, setOrder, onRemoveItem, on
     setDraggedIndex(null);
   };
 
+  const isDraggableItem = (e: React.DragEvent) => {
+    const types = e.dataTransfer.types;
+    return types.includes('application/song+json') || types.includes('application/theme+json');
+  };
+
   const handleListDragOver = (e: React.DragEvent<HTMLUListElement>) => {
     e.preventDefault();
-    if (e.dataTransfer.types.includes('application/song+json')) {
+    if (isDraggableItem(e)) {
       e.dataTransfer.dropEffect = 'copy';
     }
   };
 
   const handleListDragEnter = (e: React.DragEvent<HTMLUListElement>) => {
-    if (e.dataTransfer.types.includes('application/song+json')) {
+    if (isDraggableItem(e)) {
       setIsDropTarget(true);
     }
   };
@@ -60,8 +66,19 @@ const SongOrder: React.FC<SongOrderProps> = ({ order, setOrder, onRemoveItem, on
       try {
         const song = JSON.parse(songData) as Song;
         onAddSong(song);
+        return;
       } catch (error) {
         console.error("Failed to parse dropped song data", error);
+      }
+    }
+
+    const themeData = e.dataTransfer.getData('application/theme+json');
+    if (themeData) {
+      try {
+        const theme = JSON.parse(themeData) as Theme;
+        onAddTheme(theme);
+      } catch (error) {
+        console.error("Failed to parse dropped theme data", error);
       }
     }
   };

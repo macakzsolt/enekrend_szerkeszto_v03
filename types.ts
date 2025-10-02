@@ -13,7 +13,7 @@ export interface Theme {
 
 export type SongOrderItem = (Song | Theme) & { instanceId: string };
 
-export interface PrintOptions {
+export interface ExportOptions {
   headerTitle: string;
   headerDate: string;
   layout: 'one-column' | 'two-column';

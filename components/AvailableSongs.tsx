@@ -14,6 +14,7 @@ interface AvailableSongsProps {
 const AvailableSongs: React.FC<AvailableSongsProps> = ({ songs, onAddSong, onShowNewSongModal, onShowEditSongModal, onDeleteSong }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeBookFilters, setActiveBookFilters] = useState<string[]>([]);
+  const [chordFilter, setChordFilter] = useState<'all' | 'with-chords' | 'without-chords'>('all');
 
   const toggleBookFilter = (bookPrefix: string) => {
     setActiveBookFilters(prev =>
@@ -27,6 +28,8 @@ const AvailableSongs: React.FC<AvailableSongsProps> = ({ songs, onAddSong, onSho
     e.dataTransfer.setData('application/song+json', JSON.stringify(song));
     e.dataTransfer.effectAllowed = 'copy';
   };
+
+  const hasChords = (song: Song) => song.content.split('\n').some(line => line.trim().startsWith('.'));
 
   const filteredSongs = songs.filter(song => {
     const term = searchTerm.toLowerCase();
@@ -43,7 +46,12 @@ const AvailableSongs: React.FC<AvailableSongsProps> = ({ songs, onAddSong, onSho
         activeBookFilters.some(prefix => ref.toUpperCase().startsWith(prefix))
       ));
     
-    return searchTermMatch && bookFilterMatch;
+    const chordFilterMatch =
+      chordFilter === 'all' ||
+      (chordFilter === 'with-chords' && hasChords(song)) ||
+      (chordFilter === 'without-chords' && !hasChords(song));
+    
+    return searchTermMatch && bookFilterMatch && chordFilterMatch;
   });
 
   const sortedSongs = [...filteredSongs].sort((a, b) => a.title.localeCompare(b.title));
@@ -73,7 +81,7 @@ const AvailableSongs: React.FC<AvailableSongsProps> = ({ songs, onAddSong, onSho
                 onChange={(e) => setSearchTerm(e.target.value)}
             />
         </div>
-      <div className="mb-4">
+      <div className="mb-4 flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
               {Object.entries(BOOKS).map(([prefix, name]) => (
                   <button
@@ -97,6 +105,29 @@ const AvailableSongs: React.FC<AvailableSongsProps> = ({ songs, onAddSong, onSho
                       × Törlés
                   </button>
                 )}
+          </div>
+          <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-slate-600">Akkordok:</span>
+              {(['all', 'with-chords', 'without-chords'] as const).map(filter => {
+                  const labels = {
+                      all: 'Összes',
+                      'with-chords': 'Akkordos',
+                      'without-chords': 'Akkord nélküli',
+                  };
+                  return (
+                      <button
+                          key={filter}
+                          onClick={() => setChordFilter(filter)}
+                          className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                              chordFilter === filter
+                              ? 'bg-sky-600 text-white shadow'
+                              : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                          }`}
+                      >
+                          {labels[filter]}
+                      </button>
+                  );
+              })}
           </div>
       </div>
       <ul className="overflow-y-auto flex-grow pr-2">

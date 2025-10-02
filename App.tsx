@@ -5,6 +5,7 @@ import Themes from './components/Themes';
 import SongEditorModal from './components/SongEditorModal';
 import PrintModal from './components/PrintModal';
 import ConfirmationModal from './components/ConfirmationModal';
+import ExportDocxModal from './components/ExportDocxModal';
 import { Song, Theme, SongOrderItem } from './types';
 import { THEMES, DEFAULT_SONGS, BOOKS } from './constants';
 import { storageService } from './services/storageService';
@@ -15,6 +16,7 @@ const App: React.FC = () => {
   const [isSongEditorOpen, setSongEditorOpen] = useState(false);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [isPrintModalOpen, setPrintModalOpen] = useState(false);
+  const [isExportModalOpen, setExportModalOpen] = useState(false);
   const [isClearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [songToDelete, setSongToDelete] = useState<Song | null>(null);
 
@@ -217,9 +219,23 @@ const App: React.FC = () => {
                 return;
             }
 
+            let cleanContent = content;
+            // Remove potential BOM at the start of the file
+            if (cleanContent.charCodeAt(0) === 0xFEFF) {
+                cleanContent = cleanContent.substring(1);
+            }
+            // Trim whitespace from start and end
+            cleanContent = cleanContent.trim();
+
+            if (cleanContent === '') {
+                console.warn(`Skipping empty or whitespace-only file: ${file.name}`);
+                failedCount++;
+                return;
+            }
+
             try {
                 const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(content, "application/xml");
+                const xmlDoc = parser.parseFromString(cleanContent, "application/xml");
                 
                 const parserError = xmlDoc.querySelector("parsererror");
                 if (parserError) {
@@ -317,6 +333,7 @@ const App: React.FC = () => {
           setOrder={setOrder} 
           onRemoveItem={handleRemoveItemFromOrder} 
           onAddSong={handleAddSongToOrder}
+          onAddTheme={handleAddThemeToOrder}
         />
         <Themes themes={THEMES} onAddTheme={handleAddThemeToOrder} />
       </main>
@@ -325,6 +342,7 @@ const App: React.FC = () => {
         <button onClick={() => setClearConfirmOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Összes Törlése</button>
         <div className="h-6 w-px bg-slate-300"></div>
         <button onClick={handleExportTxt} className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200">Sorrend megosztáshoz (txt)</button>
+        <button onClick={() => setExportModalOpen(true)} className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200">Exportálás (Szerkeszthető)</button>
         <button onClick={handleExportJson} className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200">Exportálás (JSON)</button>
         <label className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200 cursor-pointer">
           Importálás (JSON)
@@ -349,6 +367,12 @@ const App: React.FC = () => {
       <PrintModal
         isOpen={isPrintModalOpen}
         onClose={() => setPrintModalOpen(false)}
+        order={order}
+      />
+      
+      <ExportDocxModal
+        isOpen={isExportModalOpen}
+        onClose={() => setExportModalOpen(false)}
         order={order}
       />
 
