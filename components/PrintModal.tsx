@@ -49,7 +49,7 @@ const PrintModal: React.FC<PrintModalProps> = ({ isOpen, onClose, order }) => {
         }
         if (line.type === 'chord' && showChords) {
           const chordText = line.text.substring(1).replace(/ /g, '&nbsp;') || '&nbsp;';
-          return `<div class="chord-line" style="font-weight: bold; color: #3b82f6; font-family: 'Roboto Mono', 'Courier New', monospace;">${chordText}</div>`;
+          return `<div class="chord-line" style="font-weight: bold; color: #111; font-family: 'Roboto Mono', 'Courier New', monospace;">${chordText}</div>`;
         }
         return '';
       }).join('');

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { SongOrderItem, Song } from '../types';
 import { songService } from '../services/songService';
@@ -49,7 +48,7 @@ const ExportDocxModal: React.FC<ExportDocxModalProps> = ({ isOpen, onClose, orde
         }
         if (line.type === 'chord' && showChords) {
           const chordText = line.text.substring(1).replace(/ /g, '&nbsp;') || '&nbsp;';
-          return `<p style="margin: 0; color: #3b82f6;"><font face="Courier New, Courier, monospace"><b>${chordText}</b></font></p>`;
+          return `<p style="margin: 0; color: #000000;"><font face="Courier New, Courier, monospace"><b>${chordText}</b></font></p>`;
         }
         return '';
       }).join('');

@@ -6,9 +6,16 @@ import SongEditorModal from './components/SongEditorModal';
 import PrintModal from './components/PrintModal';
 import ConfirmationModal from './components/ConfirmationModal';
 import ExportDocxModal from './components/ExportDocxModal';
+import Toast from './components/Toast';
 import { Song, Theme, SongOrderItem } from './types';
 import { THEMES, DEFAULT_SONGS, BOOKS } from './constants';
 import { storageService } from './services/storageService';
+
+type ToastMessage = {
+  id: number;
+  message: string;
+  type: 'success' | 'info' | 'error';
+};
 
 const App: React.FC = () => {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -19,8 +26,10 @@ const App: React.FC = () => {
   const [isExportModalOpen, setExportModalOpen] = useState(false);
   const [isClearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [songToDelete, setSongToDelete] = useState<Song | null>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const toastTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const loadedSongs = storageService.loadSongs();
@@ -43,6 +52,17 @@ const App: React.FC = () => {
   useEffect(() => {
     storageService.saveOrder(order);
   }, [order]);
+  
+  const showToast = useCallback((message: string, type: ToastMessage['type'] = 'info', duration: number = 5000) => {
+    if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+    }
+    setToast({ id: Date.now(), message, type });
+    toastTimerRef.current = window.setTimeout(() => {
+        setToast(null);
+        toastTimerRef.current = null;
+    }, duration);
+  }, []);
 
   const handleAddSongToOrder = useCallback((song: Song) => {
     const newOrderItem: SongOrderItem = { ...song, instanceId: `song_${song.id}_${Date.now()}` };
@@ -169,15 +189,16 @@ const App: React.FC = () => {
                     return Array.from(songMap.values());
                 });
             }
+            showToast('JSON adatok sikeresen importálva.', 'success');
         } catch (error) {
             console.error("Failed to parse JSON:", error);
-            alert('Hiba a JSON fájl beolvasása közben. Ellenőrizd a fájl formátumát.');
+            showToast('Hiba a JSON fájl beolvasása közben. Ellenőrizd a fájl formátumát.', 'error');
         } finally {
             if (target) target.value = '';
         }
     };
     reader.onerror = () => {
-        alert('Hiba a fájl olvasása közben.');
+        showToast('Hiba a fájl olvasása közben.', 'error');
         if (target) target.value = '';
     };
     reader.readAsText(file);
@@ -202,7 +223,7 @@ const App: React.FC = () => {
         
         const existingIds = new Set(songs.map(s => s.id));
         const newSongs: Song[] = [];
-        let skippedCount = 0;
+        const skippedFiles: string[] = [];
         let failedCount = 0;
 
         const bookNameToPrefix: { [key: string]: string } = {};
@@ -215,16 +236,14 @@ const App: React.FC = () => {
 
         fileContents.forEach(({ file, content }) => {
             if (existingIds.has(file.name)) {
-                skippedCount++;
+                skippedFiles.push(file.name);
                 return;
             }
 
             let cleanContent = content;
-            // Remove potential BOM at the start of the file
             if (cleanContent.charCodeAt(0) === 0xFEFF) {
                 cleanContent = cleanContent.substring(1);
             }
-            // Trim whitespace from start and end
             cleanContent = cleanContent.trim();
 
             if (cleanContent === '') {
@@ -297,18 +316,28 @@ const App: React.FC = () => {
             setSongs(prev => [...prev, ...newSongs]);
         }
         
-        let alertMessage = `${newSongs.length} ének sikeresen importálva.`;
-        if (skippedCount > 0) {
-            alertMessage += `\n${skippedCount} ének kihagyva (már létezett).`;
+        const summaryMessages: string[] = [];
+        if (newSongs.length > 0) {
+            summaryMessages.push(`${newSongs.length} ének sikeresen importálva.`);
+        }
+        if (skippedFiles.length > 0) {
+            summaryMessages.push(`${skippedFiles.length} ének kihagyva (már létezett):\n- ${skippedFiles.join('\n- ')}`);
         }
         if (failedCount > 0) {
-            alertMessage += `\n${failedCount} ének importálása sikertelen (hibás formátum vagy hiányzó tartalom).`;
+            summaryMessages.push(`${failedCount} ének importálása sikertelen (hibás formátum).`);
         }
-        alert(alertMessage);
+        
+        if (summaryMessages.length > 0) {
+            const message = summaryMessages.join('\n\n');
+            const type: ToastMessage['type'] = failedCount > 0 && newSongs.length === 0 ? 'error' : (skippedFiles.length > 0 ? 'info' : 'success');
+            showToast(message, type, 10000);
+        } else if (files.length > 0) {
+            showToast('A kiválasztott fájlok nem tartalmaztak importálható énekeket, vagy már léteztek.', 'info');
+        }
 
     } catch (error) {
         console.error("Error reading XML files:", error);
-        alert("Hiba történt egy vagy több fájl beolvasása közben.");
+        showToast("Hiba történt egy vagy több fájl beolvasása közben.", 'error');
     } finally {
         if (target) target.value = '';
     }
@@ -348,7 +377,7 @@ const App: React.FC = () => {
           Importálás (JSON)
           <input type="file" accept=".json" onChange={handleImportJson} className="hidden"/>
         </label>
-         <label className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200 cursor-pointer">
+        <label className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200 cursor-pointer">
           XML Fájlok Importálása
           <input type="file" accept=".xml" onChange={handleImportXml} multiple className="hidden"/>
         </label>
@@ -391,6 +420,15 @@ const App: React.FC = () => {
         onConfirm={handleConfirmDelete}
         onCancel={handleCancelDelete}
       />
+
+      {toast && (
+        <Toast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 };
