@@ -29,3 +29,18 @@ export interface Verse {
     text: string;
   }[];
 }
+
+export interface ProjectorSettings {
+  backgroundColor: string;
+  textColor: string;
+  fontFamily: string;
+  fontSize: number;
+  isBold: boolean;
+  textAlign: 'left' | 'center' | 'right';
+  showChords: boolean;
+}
+
+export type BroadcastMessage = 
+  | { type: 'content'; payload: { html: string; text: string } }
+  | { type: 'settings'; payload: ProjectorSettings }
+  | { type: 'close' };

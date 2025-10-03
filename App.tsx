@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AvailableSongs from './components/AvailableSongs';
 import SongOrder from './components/SongOrder';
@@ -7,9 +8,12 @@ import PrintModal from './components/PrintModal';
 import ConfirmationModal from './components/ConfirmationModal';
 import ExportDocxModal from './components/ExportDocxModal';
 import Toast from './components/Toast';
-import { Song, Theme, SongOrderItem } from './types';
-import { THEMES, DEFAULT_SONGS, BOOKS } from './constants';
+import ProjectorControl from './components/ProjectorControl';
+import ProjectorSettingsModal from './components/ProjectorSettingsModal';
+import { Song, Theme, SongOrderItem, ProjectorSettings, BroadcastMessage } from './types';
+import { DEFAULT_THEMES, DEFAULT_SONGS, BOOKS } from './constants';
 import { storageService } from './services/storageService';
+import { songService } from './services/songService';
 
 type ToastMessage = {
   id: number;
@@ -17,53 +21,120 @@ type ToastMessage = {
   type: 'success' | 'info' | 'error';
 };
 
+const DEFAULT_PROJECTOR_SETTINGS: ProjectorSettings = {
+  backgroundColor: '#000000',
+  textColor: '#FFFFFF',
+  fontFamily: 'Arial',
+  fontSize: 48,
+  isBold: false,
+  textAlign: 'center',
+  showChords: true,
+};
+
+const channel = new BroadcastChannel('enekrend_projector');
+
 const App: React.FC = () => {
   const [songs, setSongs] = useState<Song[]>([]);
   const [order, setOrder] = useState<SongOrderItem[]>([]);
+  const [themes, setThemes] = useState<Theme[]>([]);
   const [isSongEditorOpen, setSongEditorOpen] = useState(false);
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [isPrintModalOpen, setPrintModalOpen] = useState(false);
   const [isExportModalOpen, setExportModalOpen] = useState(false);
   const [isClearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [songToDelete, setSongToDelete] = useState<Song | null>(null);
+  const [themeToDelete, setThemeToDelete] = useState<Theme | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Projector state
+  const [isProjectorOpen, setIsProjectorOpen] = useState(false);
+  const [projectorSettings, setProjectorSettings] = useState<ProjectorSettings>(DEFAULT_PROJECTOR_SETTINGS);
+  const [isProjectorSettingsModalOpen, setIsProjectorSettingsModalOpen] = useState(false);
+  const [activeProjectionItemIndex, setActiveProjectionItemIndex] = useState<number | null>(null);
+  const projectorWindowRef = useRef<Window | null>(null);
+
   const toastTimerRef = useRef<number | null>(null);
 
+  // --- Initial Loading ---
   useEffect(() => {
-    const loadedSongs = storageService.loadSongs();
-    if (loadedSongs) {
-      setSongs(loadedSongs);
-    } else {
-      setSongs(DEFAULT_SONGS);
-    }
+    setSongs(storageService.loadSongs() || DEFAULT_SONGS);
+    setOrder(storageService.loadOrder() || []);
+    setThemes(storageService.loadThemes() || DEFAULT_THEMES);
+    setProjectorSettings(storageService.loadProjectorSettings() || DEFAULT_PROJECTOR_SETTINGS);
 
-    const loadedOrder = storageService.loadOrder();
-    if (loadedOrder) {
-      setOrder(loadedOrder);
-    }
+    const handleChannelMessage = (event: MessageEvent) => {
+        if (event.data.type === 'closed') {
+            setIsProjectorOpen(false);
+            projectorWindowRef.current = null;
+        }
+    };
+    channel.addEventListener('message', handleChannelMessage);
+
+    return () => {
+        channel.removeEventListener('message', handleChannelMessage);
+    };
   }, []);
 
-  useEffect(() => {
-    storageService.saveSongs(songs);
-  }, [songs]);
+  // --- Data Persistence ---
+  useEffect(() => { storageService.saveSongs(songs); }, [songs]);
+  useEffect(() => { storageService.saveOrder(order); }, [order]);
+  useEffect(() => { storageService.saveThemes(themes); }, [themes]);
+  useEffect(() => { storageService.saveProjectorSettings(projectorSettings); }, [projectorSettings]);
 
-  useEffect(() => {
-    storageService.saveOrder(order);
-  }, [order]);
-  
   const showToast = useCallback((message: string, type: ToastMessage['type'] = 'info', duration: number = 5000) => {
-    if (toastTimerRef.current) {
-        clearTimeout(toastTimerRef.current);
-    }
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ id: Date.now(), message, type });
-    toastTimerRef.current = window.setTimeout(() => {
-        setToast(null);
-        toastTimerRef.current = null;
-    }, duration);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), duration);
   }, []);
+  
+  // --- Projector Logic ---
+  const sendToProjector = useCallback((message: BroadcastMessage) => {
+    if (isProjectorOpen) {
+      channel.postMessage(message);
+    }
+  }, [isProjectorOpen]);
 
+  const openProjector = () => {
+    if (isProjectorOpen && projectorWindowRef.current) {
+        projectorWindowRef.current.focus();
+        return;
+    }
+    const pWindow = window.open('/projector.html', 'ÉnekrendVetítő', 'width=800,height=600,menubar=no,toolbar=no,location=no,status=no');
+    projectorWindowRef.current = pWindow;
+    setIsProjectorOpen(true);
+    // Give it a moment to load, then send initial settings
+    setTimeout(() => {
+        sendToProjector({ type: 'settings', payload: projectorSettings });
+        sendToProjector({ type: 'content', payload: {html: '<h1>Vetítés elindítva</h1><p>Válassz egy elemet a vezérlőn.</p>', text: ''} });
+    }, 500);
+  };
+
+  const closeProjector = () => {
+    sendToProjector({ type: 'close' });
+    if (projectorWindowRef.current) {
+      projectorWindowRef.current.close();
+    }
+    projectorWindowRef.current = null;
+    setIsProjectorOpen(false);
+    setActiveProjectionItemIndex(null);
+  };
+  
+  const handleProjectorSettingsChange = (newSettings: ProjectorSettings) => {
+    setProjectorSettings(newSettings);
+    sendToProjector({ type: 'settings', payload: newSettings });
+  };
+  
+  const handleProjectionItemSelect = useCallback((content: { html: string; text: string }) => {
+    let finalContent = content.text;
+    if (!projectorSettings.showChords) {
+      finalContent = songService.removeChords(finalContent);
+    }
+    const finalHtml = finalContent.replace(/\n/g, '<br/>');
+    sendToProjector({ type: 'content', payload: { html: finalHtml, text: finalContent } });
+  }, [sendToProjector, projectorSettings.showChords]);
+
+
+  // --- Core App Logic ---
   const handleAddSongToOrder = useCallback((song: Song) => {
     const newOrderItem: SongOrderItem = { ...song, instanceId: `song_${song.id}_${Date.now()}` };
     setOrder(prev => [...prev, newOrderItem]);
@@ -99,35 +170,32 @@ const App: React.FC = () => {
         return [...prevSongs, songToSave];
       }
     });
-    // also update in order if it exists
-    setOrder(prevOrder => prevOrder.map(item => {
-      if ('content' in item && item.id === songToSave.id) {
-        return { ...item, ...songToSave };
-      }
-      return item;
-    }));
+    setOrder(prevOrder => prevOrder.map(item => ('content' in item && item.id === songToSave.id) ? { ...item, ...songToSave } : item));
   };
 
-  const handleDeleteSongRequest = (song: Song) => {
-    setSongToDelete(song);
-  };
+  const handleDeleteSongRequest = (song: Song) => setSongToDelete(song);
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDeleteSong = () => {
     if (!songToDelete) return;
-    
-    // Remove from songs list
     setSongs(prevSongs => prevSongs.filter(s => s.id !== songToDelete.id));
-    
-    // Remove from order list
     setOrder(prevOrder => prevOrder.filter(item => item.id !== songToDelete.id));
-
-    setSongToDelete(null); // Close modal
-  };
-
-  const handleCancelDelete = () => {
     setSongToDelete(null);
   };
+
+  const handleUpdateTheme = (updatedTheme: Theme) => {
+    setThemes(prev => prev.map(t => t.id === updatedTheme.id ? updatedTheme : t));
+    setOrder(prev => prev.map(item => item.id === updatedTheme.id ? {...item, ...updatedTheme} : item));
+  };
   
+  const handleDeleteThemeRequest = (theme: Theme) => setThemeToDelete(theme);
+  
+  const handleConfirmDeleteTheme = () => {
+    if (!themeToDelete) return;
+    setThemes(prev => prev.filter(t => t.id !== themeToDelete.id));
+    setOrder(prev => prev.filter(item => item.id !== themeToDelete.id));
+    setThemeToDelete(null);
+  };
+
   const handleClearOrder = () => {
     setOrder([]);
     setClearConfirmOpen(false);
@@ -153,12 +221,15 @@ const App: React.FC = () => {
       }
       return line;
     }).join('\n');
-    
     downloadFile(content, 'enekrend.txt', 'text/plain;charset=utf-8');
   };
 
   const handleExportJson = () => {
-    const content = JSON.stringify({ order, songs: songs.filter(s => order.some(o => o.id === s.id)) }, null, 2);
+    const content = JSON.stringify({ 
+        order, 
+        songs: songs.filter(s => order.some(o => o.id === s.id && 'content' in o)),
+        themes 
+    }, null, 2);
     downloadFile(content, 'enekrend.json', 'application/json');
   };
   
@@ -174,14 +245,11 @@ const App: React.FC = () => {
             if (!result) throw new Error("File could not be read.");
             
             const data = JSON.parse(result);
-            if (data.order && Array.isArray(data.order)) {
-                setOrder(data.order);
-            }
+            if (data.order && Array.isArray(data.order)) setOrder(data.order);
             if (data.songs && Array.isArray(data.songs)) {
                 setSongs(prevSongs => {
                     const songMap = new Map(prevSongs.map(s => [s.id, s]));
                     data.songs.forEach((newSong: Song) => {
-                        // Basic validation
                         if (newSong.id && typeof newSong.title === 'string' && typeof newSong.content === 'string') {
                             songMap.set(newSong.id, newSong);
                         }
@@ -189,10 +257,11 @@ const App: React.FC = () => {
                     return Array.from(songMap.values());
                 });
             }
+            if (data.themes && Array.isArray(data.themes)) setThemes(data.themes);
             showToast('JSON adatok sikeresen importálva.', 'success');
         } catch (error) {
             console.error("Failed to parse JSON:", error);
-            showToast('Hiba a JSON fájl beolvasása közben. Ellenőrizd a fájl formátumát.', 'error');
+            showToast('Hiba a JSON fájl beolvasása közben.', 'error');
         } finally {
             if (target) target.value = '';
         }
@@ -241,13 +310,10 @@ const App: React.FC = () => {
             }
 
             let cleanContent = content;
-            if (cleanContent.charCodeAt(0) === 0xFEFF) {
-                cleanContent = cleanContent.substring(1);
-            }
+            if (cleanContent.charCodeAt(0) === 0xFEFF) cleanContent = cleanContent.substring(1);
             cleanContent = cleanContent.trim();
 
             if (cleanContent === '') {
-                console.warn(`Skipping empty or whitespace-only file: ${file.name}`);
                 failedCount++;
                 return;
             }
@@ -276,7 +342,6 @@ const App: React.FC = () => {
                 const lyrics = querySelectorText(["lyrics"]);
 
                 if (!lyrics) {
-                    console.warn(`Could not extract <lyrics> from ${file.name}`);
                     failedCount++;
                     return;
                 }
@@ -288,44 +353,25 @@ const App: React.FC = () => {
                     const entry = node.getAttribute('entry');
                     if (name && entry) {
                         const prefix = bookNameToPrefix[name];
-                        if (prefix) {
-                            referencesFromXml.push(`${prefix}${entry}`);
-                        }
+                        if (prefix) referencesFromXml.push(`${prefix}${entry}`);
                     }
                 });
-
                 const referencesFromFile = file.name.match(referenceRegex) || [];
-                
                 const allReferences = Array.from(new Set([...referencesFromXml, ...referencesFromFile.map(ref => ref.toUpperCase())]));
 
-
-                newSongs.push({
-                    id: file.name,
-                    title,
-                    author,
-                    content: lyrics,
-                    references: allReferences,
-                });
+                newSongs.push({ id: file.name, title, author, content: lyrics, references: allReferences });
             } catch (e) {
                 console.error(`Failed to process XML file ${file.name}`, e);
                 failedCount++;
             }
         });
 
-        if (newSongs.length > 0) {
-            setSongs(prev => [...prev, ...newSongs]);
-        }
+        if (newSongs.length > 0) setSongs(prev => [...prev, ...newSongs]);
         
         const summaryMessages: string[] = [];
-        if (newSongs.length > 0) {
-            summaryMessages.push(`${newSongs.length} ének sikeresen importálva.`);
-        }
-        if (skippedFiles.length > 0) {
-            summaryMessages.push(`${skippedFiles.length} ének kihagyva (már létezett):\n- ${skippedFiles.join('\n- ')}`);
-        }
-        if (failedCount > 0) {
-            summaryMessages.push(`${failedCount} ének importálása sikertelen (hibás formátum).`);
-        }
+        if (newSongs.length > 0) summaryMessages.push(`${newSongs.length} ének sikeresen importálva.`);
+        if (skippedFiles.length > 0) summaryMessages.push(`${skippedFiles.length} ének kihagyva (már létezett):\n- ${skippedFiles.join('\n- ')}`);
+        if (failedCount > 0) summaryMessages.push(`${failedCount} ének importálása sikertelen (hibás formátum).`);
         
         if (summaryMessages.length > 0) {
             const message = summaryMessages.join('\n\n');
@@ -357,32 +403,53 @@ const App: React.FC = () => {
           onShowEditSongModal={handleShowEditSongModal}
           onDeleteSong={handleDeleteSongRequest}
         />
-        <SongOrder 
-          order={order} 
-          setOrder={setOrder} 
-          onRemoveItem={handleRemoveItemFromOrder} 
-          onAddSong={handleAddSongToOrder}
-          onAddTheme={handleAddThemeToOrder}
+        {isProjectorOpen ? (
+            <ProjectorControl 
+                order={order}
+                onSelectItem={handleProjectionItemSelect}
+                onShowSettings={() => setIsProjectorSettingsModalOpen(true)}
+                activeItemIndex={activeProjectionItemIndex}
+                setActiveItemIndex={setActiveProjectionItemIndex}
+            />
+        ) : (
+            <SongOrder 
+              order={order} 
+              setOrder={setOrder} 
+              onRemoveItem={handleRemoveItemFromOrder} 
+              onAddSong={handleAddSongToOrder}
+              onAddTheme={handleAddThemeToOrder}
+            />
+        )}
+        <Themes 
+          themes={themes} 
+          setThemes={setThemes}
+          onAddThemeToOrder={handleAddThemeToOrder}
+          onUpdateTheme={handleUpdateTheme}
+          onDeleteTheme={handleDeleteThemeRequest}
         />
-        <Themes themes={THEMES} onAddTheme={handleAddThemeToOrder} />
       </main>
       
       <footer className="mt-4 p-4 bg-white rounded-lg shadow-md flex flex-wrap items-center justify-center gap-4 flex-shrink-0">
         <button onClick={() => setClearConfirmOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Összes Törlése</button>
         <div className="h-6 w-px bg-slate-300"></div>
-        <button onClick={handleExportTxt} className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200">Sorrend megosztáshoz (txt)</button>
-        <button onClick={() => setExportModalOpen(true)} className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200">Exportálás (Szerkeszthető)</button>
-        <button onClick={handleExportJson} className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200">Exportálás (JSON)</button>
+        <button onClick={handleExportTxt} className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200">Sorrend (txt)</button>
+        <button onClick={() => setExportModalOpen(true)} className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200">Export (Word)</button>
+        <button onClick={handleExportJson} className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200">Export (JSON)</button>
         <label className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200 cursor-pointer">
-          Importálás (JSON)
+          Import (JSON)
           <input type="file" accept=".json" onChange={handleImportJson} className="hidden"/>
         </label>
         <label className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200 cursor-pointer">
-          XML Fájlok Importálása
+          Import (XML)
           <input type="file" accept=".xml" onChange={handleImportXml} multiple className="hidden"/>
         </label>
         <div className="h-6 w-px bg-slate-300"></div>
-        <button onClick={() => setPrintModalOpen(true)} className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700">Miserend Nyomtatáshoz</button>
+        <button onClick={() => setPrintModalOpen(true)} className="px-4 py-2 text-sm font-medium text-sky-700 bg-sky-100 rounded-md hover:bg-sky-200">Nyomtatás</button>
+        {isProjectorOpen ? (
+          <button onClick={closeProjector} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Vetítés Leállítása</button>
+        ) : (
+          <button onClick={openProjector} className="px-4 py-2 text-sm font-medium text-white bg-sky-600 rounded-md hover:bg-sky-700">Vetítés Indítása</button>
+        )}
       </footer>
 
       <SongEditorModal 
@@ -392,17 +459,13 @@ const App: React.FC = () => {
         onSave={handleSaveSong}
         existingFilenames={songs.map(s => s.id)}
       />
-      
-      <PrintModal
-        isOpen={isPrintModalOpen}
-        onClose={() => setPrintModalOpen(false)}
-        order={order}
-      />
-      
-      <ExportDocxModal
-        isOpen={isExportModalOpen}
-        onClose={() => setExportModalOpen(false)}
-        order={order}
+      <PrintModal isOpen={isPrintModalOpen} onClose={() => setPrintModalOpen(false)} order={order}/>
+      <ExportDocxModal isOpen={isExportModalOpen} onClose={() => setExportModalOpen(false)} order={order}/>
+      <ProjectorSettingsModal 
+        isOpen={isProjectorSettingsModalOpen}
+        onClose={() => setIsProjectorSettingsModalOpen(false)}
+        settings={projectorSettings}
+        onSettingsChange={handleProjectorSettingsChange}
       />
 
       <ConfirmationModal
@@ -412,23 +475,22 @@ const App: React.FC = () => {
         onConfirm={handleClearOrder}
         onCancel={() => setClearConfirmOpen(false)}
       />
-
       <ConfirmationModal
         isOpen={!!songToDelete}
         title="Ének törlése"
         message={`Biztosan törölni szeretnéd a(z) "${songToDelete?.title}" című éneket? Ez a művelet eltávolítja az éneket a sorrendből is.`}
-        onConfirm={handleConfirmDelete}
-        onCancel={handleCancelDelete}
+        onConfirm={handleConfirmDeleteSong}
+        onCancel={() => setSongToDelete(null)}
+      />
+      <ConfirmationModal
+        isOpen={!!themeToDelete}
+        title="Téma törlése"
+        message={`Biztosan törölni szeretnéd a(z) "${themeToDelete?.title}" témát? Ez a művelet eltávolítja a témát a sorrendből is.`}
+        onConfirm={handleConfirmDeleteTheme}
+        onCancel={() => setThemeToDelete(null)}
       />
 
-      {toast && (
-        <Toast
-          key={toast.id}
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+      {toast && <Toast key={toast.id} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 };

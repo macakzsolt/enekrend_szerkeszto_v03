@@ -10,7 +10,7 @@ export const BOOKS: { [key: string]: string } = {
   'SZ': 'Szent vagy Uram',
 };
 
-export const THEMES: Theme[] = [
+export const DEFAULT_THEMES: Theme[] = [
   { id: 'theme_bevonulas', title: 'Bevonulási ének' },
   { id: 'theme_kyrie', title: 'Kyrie' },
   { id: 'theme_gloria', title: 'Gloria' },
@@ -58,7 +58,7 @@ Nincs más rajtad kívül,
 .C            D
 Kitől annyi jót kapnék.
 .G        D        Em  C
-Te vagy a legdrágább barát!
+Te vagy a legdrább barát!
 .G            D       G`,
     references: ['D17', 'SK28']
   },

@@ -1,4 +1,4 @@
-import { Verse } from './types';
+import { Verse } from '../types';
 
 const SHARP_SCALE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const FLAT_SCALE = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -137,5 +137,9 @@ export const songService = {
     });
 
     return this.versesToContent(verses);
+  },
+
+  removeChords(content: string): string {
+    return content.split('\n').filter(line => !line.trim().startsWith('.')).join('\n');
   },
 };

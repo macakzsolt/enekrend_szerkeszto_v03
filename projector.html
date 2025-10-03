@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Énekrend Szerkesztő</title>
+    <title>Énekrend Vetítő</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -11,8 +11,6 @@
           extend: {
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
-              serif: ['Georgia', 'serif'],
-              mono: ['Courier New', 'monospace'],
             }
           }
         }
@@ -31,8 +29,8 @@
 }
 </script>
 </head>
-  <body class="bg-slate-100 text-slate-800 h-full">
+  <body class="h-full bg-black">
     <div id="root" class="h-full"></div>
-    <script type="module" src="./index.tsx"></script>
+    <script type="module" src="./projector.tsx"></script>
   </body>
 </html>
