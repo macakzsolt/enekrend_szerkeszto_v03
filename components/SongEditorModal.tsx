@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Song, Verse } from '../types';
+import { Song, Verse, EditorSettings } from '../types';
 import { songService } from '../services/songService';
+import { storageService } from '../services/storageService';
 import { COMMON_CHORDS, VERSE_MARKERS } from '../constants';
 
 interface SongEditorModalProps {
@@ -17,6 +18,12 @@ interface HistoryEntry {
 }
 
 const PLACEHOLDER_TEXT = `Ének szövege...\nAkkord sorokat '.'-tal kezdj.\nVesszakokat '[V1]' jelölj.`;
+
+const EDITOR_FONT_OPTIONS = ['monospace', 'Courier New', 'Roboto Mono', 'Source Code Pro', 'Fira Code'];
+const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
+  fontFamily: 'monospace',
+  fontSize: 14,
+};
 
 const escapeHtml = (unsafe: string) => unsafe
      .replace(/&/g, "&amp;")
@@ -59,6 +66,7 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
   const highlighterRef = useRef<HTMLPreElement>(null);
 
   const [isCopyChordsModalOpen, setCopyChordsModalOpen] = useState(false);
+  const [editorSettings, setEditorSettings] = useState<EditorSettings>(DEFAULT_EDITOR_SETTINGS);
 
   useEffect(() => {
     if (isOpen) {
@@ -69,6 +77,7 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
       setContent(song?.content || '');
       setHistory([{ content: song?.content || '', cursorPosition: 0 }]);
       setHistoryIndex(0);
+      setEditorSettings(storageService.loadEditorSettings() || DEFAULT_EDITOR_SETTINGS);
     } else {
       setFilenameError(null);
     }
@@ -164,11 +173,22 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
     updateContent(newContent, start + text.length);
     setTimeout(() => textarea.focus(), 0);
   };
+
+  const handleSettingsChange = (key: keyof EditorSettings, value: string | number) => {
+    const newSettings = { ...editorSettings, [key]: value };
+    setEditorSettings(newSettings);
+    storageService.saveEditorSettings(newSettings);
+  };
   
   if (!isOpen) return null;
 
   const verses = songService.parseToVerses(content);
   const highlightedHtml = generateHighlightedContent(content);
+
+  const editorStyle = {
+    fontFamily: editorSettings.fontFamily,
+    fontSize: `${editorSettings.fontSize}px`,
+  };
 
   return (
     <>
@@ -208,6 +228,11 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
                 <button onClick={handleNormalize} className="px-2 py-1 text-xs bg-white rounded border border-slate-300">B-&gt;H</button>
                 <div className="h-4 w-px bg-slate-300"></div>
                 <button onClick={() => setCopyChordsModalOpen(true)} className="px-2 py-1 text-xs bg-white rounded border border-slate-300">Akkordok másolása</button>
+                <div className="h-4 w-px bg-slate-300"></div>
+                <select value={editorSettings.fontFamily} onChange={e => handleSettingsChange('fontFamily', e.target.value)} className="px-2 py-1 text-xs bg-white rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-sky-500" style={{fontFamily: editorSettings.fontFamily}}>
+                  {EDITOR_FONT_OPTIONS.map(font => <option key={font} value={font} style={{fontFamily: font}}>{font}</option>)}
+                </select>
+                <input type="number" value={editorSettings.fontSize} onChange={e => handleSettingsChange('fontSize', parseInt(e.target.value) || 14)} min="8" max="24" className="w-16 px-2 py-1 text-xs bg-white rounded border border-slate-300 focus:outline-none focus:ring-1 focus:ring-sky-500"/>
             </div>
             <div className="flex flex-wrap gap-1 p-2 bg-slate-100 border-b border-slate-300">
                 {COMMON_CHORDS.map(c => <button key={c} onClick={() => insertText(c + ' ')} className="font-mono text-xs px-2 py-0.5 bg-white rounded border border-slate-300">{c}</button>)}
@@ -220,7 +245,8 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
               <pre
                   ref={highlighterRef}
                   aria-hidden="true"
-                  className="absolute top-0 left-0 w-full h-full p-2 border border-gray-300 rounded-b-md shadow-inner bg-white font-mono text-sm resize-none overflow-auto whitespace-pre-wrap word-break-normal"
+                  style={editorStyle}
+                  className="absolute top-0 left-0 w-full h-full p-2 border border-gray-300 rounded-b-md shadow-inner bg-white resize-none overflow-auto whitespace-pre-wrap word-break-normal"
               >
                   <code dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
               </pre>
@@ -229,7 +255,8 @@ const SongEditorModal: React.FC<SongEditorModalProps> = ({ isOpen, song, onClose
                 value={content} 
                 onChange={e => updateContent(e.target.value, e.target.selectionStart)}
                 onScroll={e => syncScroll(e.currentTarget)}
-                className="absolute top-0 left-0 w-full h-full p-2 border-transparent focus:border-transparent rounded-b-md font-mono text-sm resize-none bg-transparent text-transparent caret-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500"
+                style={editorStyle}
+                className="absolute top-0 left-0 w-full h-full p-2 border-transparent focus:border-transparent rounded-b-md resize-none bg-transparent text-transparent caret-slate-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500"
                 spellCheck="false"
                 autoComplete="off"
                 autoCorrect="off"

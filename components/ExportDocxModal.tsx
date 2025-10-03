@@ -47,7 +47,7 @@ const ExportDocxModal: React.FC<ExportDocxModalProps> = ({ isOpen, onClose, orde
           return `<p style="margin: 0; min-height: 1.2em;">${line.text || '&nbsp;'}</p>`;
         }
         if (line.type === 'chord' && showChords) {
-          const chordText = line.text.substring(1).replace(/ /g, '&nbsp;') || '&nbsp;';
+          const chordText = line.text.replace(/ /g, '&nbsp;').replace('.', '<span style="color:white;mso-hide:all">.</span>') || '&nbsp;';
           return `<p style="margin: 0; color: #000000;"><font face="Courier New, Courier, monospace"><b>${chordText}</b></font></p>`;
         }
         return '';

@@ -142,4 +142,33 @@ export const songService = {
   removeChords(content: string): string {
     return content.split('\n').filter(line => !line.trim().startsWith('.')).join('\n');
   },
+
+  generateProjectorHtml(content: string, showChords: boolean): string {
+    const verses = this.parseToVerses(content);
+    const hasChords = verses.some(v => v.lines.some(l => l.type === 'chord'));
+  
+    const escape = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  
+    const versesHtml = verses.map(verse => {
+      const verseMarker = verse.marker ? `<div class="verse-marker">${escape(verse.marker)}</div>` : '';
+      const linesHtml = verse.lines.map(line => {
+        if (line.type === 'lyric') {
+          return `<div class="lyric-line">${escape(line.text) || '&nbsp;'}</div>`;
+        }
+        if (line.type === 'chord' && showChords) {
+          const escapedLine = escape(line.text);
+          const withNbsp = escapedLine.replace(/ /g, '&nbsp;');
+          const finalChordHtml = withNbsp.replace('.', '<span style="opacity:0">.</span>');
+          return `<div class="chord-line">${finalChordHtml || '&nbsp;'}</div>`;
+        }
+        return null;
+      }).filter(Boolean).join('');
+      return verseMarker + linesHtml;
+    }).join('');
+  
+    if (showChords && hasChords) {
+      return `<div class="verse-content-wrapper">${versesHtml}</div>`;
+    }
+    return versesHtml;
+  }
 };

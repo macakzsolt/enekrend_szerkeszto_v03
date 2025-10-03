@@ -1,5 +1,5 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import ReactDOM from 'react-dom/client';
 import AvailableSongs from './components/AvailableSongs';
 import SongOrder from './components/SongOrder';
 import Themes from './components/Themes';
@@ -10,6 +10,7 @@ import ExportDocxModal from './components/ExportDocxModal';
 import Toast from './components/Toast';
 import ProjectorControl from './components/ProjectorControl';
 import ProjectorSettingsModal from './components/ProjectorSettingsModal';
+import ProjectorView from './projector';
 import { Song, Theme, SongOrderItem, ProjectorSettings, BroadcastMessage } from './types';
 import { DEFAULT_THEMES, DEFAULT_SONGS, BOOKS } from './constants';
 import { storageService } from './services/storageService';
@@ -94,19 +95,76 @@ const App: React.FC = () => {
     }
   }, [isProjectorOpen]);
 
-  const openProjector = () => {
-    if (isProjectorOpen && projectorWindowRef.current) {
+ const openProjector = () => {
+    if (isProjectorOpen && projectorWindowRef.current && !projectorWindowRef.current.closed) {
         projectorWindowRef.current.focus();
         return;
     }
-    const pWindow = window.open('/projector.html', 'ÉnekrendVetítő', 'width=800,height=600,menubar=no,toolbar=no,location=no,status=no');
-    projectorWindowRef.current = pWindow;
-    setIsProjectorOpen(true);
-    // Give it a moment to load, then send initial settings
-    setTimeout(() => {
-        sendToProjector({ type: 'settings', payload: projectorSettings });
-        sendToProjector({ type: 'content', payload: {html: '<h1>Vetítés elindítva</h1><p>Válassz egy elemet a vezérlőn.</p>', text: ''} });
-    }, 500);
+    
+    const pWindow = window.open('', 'ÉnekrendVetítő', 'width=800,height=600,menubar=no,toolbar=no,location=no,status=no');
+    
+    if (pWindow) {
+        projectorWindowRef.current = pWindow;
+
+        const projectorHTML = `
+            <!DOCTYPE html>
+            <html lang="hu" class="h-full">
+            <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <title>Énekrend Vetítő</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+                <script>
+                  tailwind.config = {
+                    theme: {
+                      extend: {
+                        fontFamily: {
+                          sans: ['Inter', 'sans-serif'],
+                          serif: ['Georgia', 'serif'],
+                          mono: ['Roboto Mono', 'monospace'],
+                        }
+                      }
+                    }
+                  }
+                </script>
+                <link rel="preconnect" href="https://rsms.me/">
+                <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+                <link rel="preconnect" href="https://fonts.googleapis.com">
+                <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+                <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap" rel="stylesheet">
+                <style> body { margin: 0; } </style>
+            </head>
+            <body class="h-full bg-black">
+                <div id="root" class="h-full"></div>
+            </body>
+            </html>
+        `;
+        pWindow.document.write(projectorHTML);
+        pWindow.document.close();
+
+        const rootEl = pWindow.document.getElementById('root');
+        if (rootEl) {
+            const root = ReactDOM.createRoot(rootEl);
+            root.render(
+                <React.StrictMode>
+                    <ProjectorView />
+                </React.StrictMode>
+            );
+            
+            setIsProjectorOpen(true);
+            // Give it a moment to load, then send initial settings
+            setTimeout(() => {
+                sendToProjector({ type: 'settings', payload: projectorSettings });
+                sendToProjector({ type: 'content', payload: {html: '<h1>Vetítés elindítva</h1><p>Válassz egy elemet a vezérlőn.</p>', text: ''} });
+            }, 500);
+
+        } else {
+             showToast('A vetítő ablakot nem sikerült inicializálni.', 'error');
+        }
+
+    } else {
+        showToast('A vetítő ablak megnyitását letiltotta a böngésző. Kérjük, engedélyezze a felugró ablakokat ezen az oldalon.', 'error', 8000);
+    }
   };
 
   const closeProjector = () => {
@@ -125,12 +183,8 @@ const App: React.FC = () => {
   };
   
   const handleProjectionItemSelect = useCallback((content: { html: string; text: string }) => {
-    let finalContent = content.text;
-    if (!projectorSettings.showChords) {
-      finalContent = songService.removeChords(finalContent);
-    }
-    const finalHtml = finalContent.replace(/\n/g, '<br/>');
-    sendToProjector({ type: 'content', payload: { html: finalHtml, text: finalContent } });
+    const finalHtml = songService.generateProjectorHtml(content.text, projectorSettings.showChords);
+    sendToProjector({ type: 'content', payload: { html: finalHtml, text: content.text } });
   }, [sendToProjector, projectorSettings.showChords]);
 
 
@@ -310,10 +364,19 @@ const App: React.FC = () => {
             }
 
             let cleanContent = content;
-            if (cleanContent.charCodeAt(0) === 0xFEFF) cleanContent = cleanContent.substring(1);
-            cleanContent = cleanContent.trim();
+            // Standard BOM check for UTF-8
+            if (cleanContent.charCodeAt(0) === 0xFEFF) {
+                cleanContent = cleanContent.substring(1);
+            }
 
-            if (cleanContent === '') {
+            // Aggressively strip any non-XML content from the beginning of the file.
+            const firstTagIndex = cleanContent.indexOf('<');
+            if (firstTagIndex > 0) {
+                cleanContent = cleanContent.substring(firstTagIndex);
+            }
+
+            // If there's no XML tag, or the file is effectively empty, skip it.
+            if (firstTagIndex === -1 || cleanContent.trim() === '') {
                 failedCount++;
                 return;
             }

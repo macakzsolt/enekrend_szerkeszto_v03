@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ProjectorSettings } from '../types';
 
@@ -10,9 +9,9 @@ interface ProjectorSettingsModalProps {
 }
 
 const FONT_OPTIONS = [
-  'Arial', 'Verdana', 'Helvetica', 'Tahoma', 'Trebuchet MS', 
-  'Times New Roman', 'Georgia', 'Garamond', 
-  'Courier New', 'Lucida Console'
+  { group: 'Sans-Serif', fonts: ['Inter', 'Arial', 'Verdana', 'Helvetica', 'Tahoma', 'Trebuchet MS'] },
+  { group: 'Serif', fonts: ['Georgia', 'Times New Roman', 'Garamond'] },
+  { group: 'Monospace', fonts: ['Roboto Mono', 'Courier New', 'Lucida Console'] }
 ];
 
 const ProjectorSettingsModal: React.FC<ProjectorSettingsModalProps> = ({ isOpen, onClose, settings, onSettingsChange }) => {
@@ -55,12 +54,41 @@ const ProjectorSettingsModal: React.FC<ProjectorSettingsModalProps> = ({ isOpen,
             <div>
               <label htmlFor="fontFamily" className={labelClass}>Betűtípus</label>
               <select id="fontFamily" value={currentSettings.fontFamily} onChange={e => handleChange('fontFamily', e.target.value)} className={inputClass}>
-                {FONT_OPTIONS.map(font => <option key={font} value={font}>{font}</option>)}
+                {FONT_OPTIONS.map(group => (
+                  <optgroup key={group.group} label={group.group}>
+                    {group.fonts.map(font => (
+                      <option key={font} value={font}>{font}</option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </div>
             <div>
-              <label htmlFor="fontSize" className={labelClass}>Betűméret ({currentSettings.fontSize}pt)</label>
-              <input id="fontSize" type="range" min="14" max="80" value={currentSettings.fontSize} onChange={e => handleChange('fontSize', parseInt(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"/>
+              <label htmlFor="fontSize" className={labelClass}>Betűméret</label>
+              <div className="flex items-center gap-4 mt-1">
+                <input
+                  id="fontSize"
+                  type="range"
+                  min="14"
+                  max="80"
+                  value={currentSettings.fontSize}
+                  onChange={e => handleChange('fontSize', parseInt(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <div className="relative flex-shrink-0">
+                  <input
+                    type="number"
+                    value={currentSettings.fontSize}
+                    onChange={e => handleChange('fontSize', parseInt(e.target.value) || 14)}
+                    className="w-24 text-sm px-3 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500"
+                    min="1"
+                    aria-label="Pontos betűméret"
+                  />
+                  <span className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-500 text-sm">
+                    pt
+                  </span>
+                </div>
+              </div>
             </div>
             <div>
               <label className={labelClass}>Igazítás</label>

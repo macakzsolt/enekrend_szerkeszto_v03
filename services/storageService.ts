@@ -1,10 +1,11 @@
 
-import { Song, SongOrderItem, Theme, ProjectorSettings } from "../types";
+import { Song, SongOrderItem, Theme, ProjectorSettings, EditorSettings } from "../types";
 
 const SONGS_KEY = 'enekrend_songs';
 const ORDER_KEY = 'enekrend_order';
 const THEMES_KEY = 'enekrend_themes';
 const PROJECTOR_SETTINGS_KEY = 'enekrend_projector_settings';
+const EDITOR_SETTINGS_KEY = 'enekrend_editor_settings';
 
 
 export const storageService = {
@@ -76,6 +77,24 @@ export const storageService = {
       return settingsJson ? JSON.parse(settingsJson) : null;
     } catch (error) {
       console.error("Failed to load projector settings from localStorage", error);
+      return null;
+    }
+  },
+
+  saveEditorSettings: (settings: EditorSettings): void => {
+    try {
+      localStorage.setItem(EDITOR_SETTINGS_KEY, JSON.stringify(settings));
+    } catch (error) {
+      console.error("Failed to save editor settings to localStorage", error);
+    }
+  },
+
+  loadEditorSettings: (): EditorSettings | null => {
+    try {
+      const settingsJson = localStorage.getItem(EDITOR_SETTINGS_KEY);
+      return settingsJson ? JSON.parse(settingsJson) : null;
+    } catch (error) {
+      console.error("Failed to load editor settings from localStorage", error);
       return null;
     }
   }

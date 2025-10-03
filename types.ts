@@ -40,6 +40,11 @@ export interface ProjectorSettings {
   showChords: boolean;
 }
 
+export interface EditorSettings {
+  fontFamily: string;
+  fontSize: number; // in pixels
+}
+
 export type BroadcastMessage = 
   | { type: 'content'; payload: { html: string; text: string } }
   | { type: 'settings'; payload: ProjectorSettings }

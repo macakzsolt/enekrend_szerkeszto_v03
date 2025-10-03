@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { SongOrderItem, Song, Verse } from '../types';
+import React, { useState, useRef } from 'react';
+import { SongOrderItem, Song } from '../types';
 import { songService } from '../services/songService';
 
 interface PrintModalProps {
@@ -48,7 +48,7 @@ const PrintModal: React.FC<PrintModalProps> = ({ isOpen, onClose, order }) => {
           return `<div class="lyric-line" style="min-height: 1.2em;">${line.text || '&nbsp;'}</div>`;
         }
         if (line.type === 'chord' && showChords) {
-          const chordText = line.text.substring(1).replace(/ /g, '&nbsp;') || '&nbsp;';
+          const chordText = line.text.replace(/ /g, '&nbsp;').replace('.', '<span style="opacity: 0;">.</span>') || '&nbsp;';
           return `<div class="chord-line" style="font-weight: bold; color: #111; font-family: 'Roboto Mono', 'Courier New', monospace;">${chordText}</div>`;
         }
         return '';
@@ -130,17 +130,6 @@ const PrintModal: React.FC<PrintModalProps> = ({ isOpen, onClose, order }) => {
     `;
   };
 
-  useEffect(() => {
-    if (isOpen && iframeRef.current) {
-      const doc = iframeRef.current.contentWindow?.document;
-      if (doc) {
-        doc.open();
-        doc.write(generatePrintContent());
-        doc.close();
-      }
-    }
-  }, [isOpen, order, layout, fontSize, showChords, showPageNumbers, headerTitle, headerDate, margins, columnGap, fontFamily]);
-
   const handlePrint = () => {
     const iframe = iframeRef.current;
     if (iframe && iframe.contentWindow) {
@@ -151,6 +140,7 @@ const PrintModal: React.FC<PrintModalProps> = ({ isOpen, onClose, order }) => {
 
   if (!isOpen) return null;
 
+  const printContent = generatePrintContent();
   const inputClass = "mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500 disabled:bg-slate-100";
   const smallInputClass = "w-full px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sky-500 focus:border-sky-500";
   const checkboxClass = "h-4 w-4 text-sky-600 border-gray-300 rounded focus:ring-sky-500";
@@ -220,7 +210,12 @@ const PrintModal: React.FC<PrintModalProps> = ({ isOpen, onClose, order }) => {
           </div>
         </div>
         <div className="flex-grow p-4 bg-gray-300">
-          <iframe ref={iframeRef} className="w-full h-full bg-white shadow-lg border border-gray-400" title="Print Preview"/>
+          <iframe 
+            ref={iframeRef} 
+            className="w-full h-full bg-white shadow-lg border border-gray-400" 
+            title="Print Preview"
+            srcDoc={printContent}
+          />
         </div>
       </div>
     </div>
